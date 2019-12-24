@@ -1,0 +1,167 @@
+#!/usr/bin/env zsh
+
+this_script="$(basename $0)";
+
+xauth_file="";
+
+machinectl=$(which machinectl);
+systemd_nspawn=$(which systemd-nspawn);
+
+## Checks for sudo invocation
+if [ `id -u` -ne 0 ];
+then
+    sudo $0 $*;
+    exit 0;
+fi
+
+## Parse arguments
+command="$1"; shift;
+target_machine="$1"; shift;
+
+function echolor()
+{
+    local message="$1";
+    local color="$2";
+
+    [[ -z "${color}" ]] && color=3;
+
+    echo -ne "\033[30;4${color}m ${this_script} \033[0m";
+    echo -e "\033[3${color}m ${message}\033[0m";
+}
+
+function die()
+{
+    echolor $1 1;
+    exit 1;
+}
+
+function xmachine_usage()
+{
+    echo;
+    echolor "${this_script} v1.0" 4;
+    echo;
+    echo "commands:";
+    echo;
+    echo "start MACHINE                -- Starts machine MACHINE";
+    echo "stop MACHINE                 -- Stops machine MACHINE";
+    echo "login MACHINE USER [PARAMS]  -- Login to machine MACHINE as USER";
+    echo "poweroff MACHINE             -- Shutdowns machine MACHINE";
+}
+
+function xmachine_xauthgen()
+{
+    xauth_file="/tmp/.${target_machine}_xauthority";
+    [[ ! -f "${xauth_file}" ]] && touch "${xauth_file}";
+
+    echolor "Generating Xauthority file..." 6;
+
+    # Generates Xauthority file
+    xauth nextract - "${DISPLAY}" | 
+        sed -e 's/^..../ffff/' | 
+        xauth -f "${xauth_file}" nmerge -;
+
+    # Updates file permission
+    chmod 0755 "${xauth_file}" > /dev/null 2>&1;
+
+    return $?;
+
+    [[ $? -eq 0 ]]
+}
+
+function xmachine_login()
+{
+    echolor "Logging into machine '${target_machine}'." 3;
+
+    local login_user="$1"; shift;
+    [[ -z "${login_user}" ]] && login_user="${USER}";
+
+    xmachine_xauthgen || die "Could not generate XAUTHORITY file.";
+
+    xmachine_status ${target_machine};
+    if [ $? -eq 0 ];
+    then
+        echolor "Machine '${target_machine}' is running!" 1;
+        echolor "Press any key to stop it (or Ctrl-C to quit)..." 3;
+        read;
+
+        ${machinectl} stop ${target_machine};
+        sleep 2;
+    fi
+
+    ${systemd_nspawn} \
+        --machine=${target_machine} \
+        --bind="/tmp/.X11-unix" --bind="${xauth_file}" \
+        --setenv=DISPLAY="${DISPLAY}" --setenv=XAUTHORITY="${xauth_file}" \
+        --user="${login_user}" \
+        --private-users=pick $*;
+}
+
+function xmachine_status()
+{
+    ${machinectl} --quiet --no-pager status $1 > /dev/null 2>&1;
+    return $?;
+}
+
+function xmachine_xwin()
+{
+    xmachine_xauthgen;
+    if [ $? -ne 0 ];
+    then
+        die "Could not generate the XAUTHORITY file.";
+    fi
+
+    xmachine_status ${target_machine};
+    [[ $? -ne 0 ]] && xmachine_start;
+
+    # ${machinectl} login ${target_machine};
+}
+
+case "${command}" in
+
+"help")
+    xmachine_usage;
+    exit 0;
+;;
+
+"start")
+    xmachine_status ${target_machine};
+    if [ $? -eq 0 ];
+    then
+        echolor "Machine '${target_machine}' is already up and running." 5;
+        exit 1;
+    fi
+
+    ${machinectl} start ${target_machine};
+;;
+
+"xwin")
+    xmachine_xwin $*;
+;;
+
+"stop")
+    echolor "Stopping machine '${target_machine}'." 3;
+    ${machinectl} stop ${target_machine};
+;;
+
+"login");
+    if [ -z "$1" ];
+    then
+        echolor "Missing username for command 'login'." 5;
+        xmachine_usage;
+        exit 1;
+    fi
+    
+    xmachine_login $*;
+;;
+
+"poweroff")
+    echolor "Powering-off machine '${target_machine}'." 3;
+    ${machinectl} poweroff ${target_machine};
+;;
+
+*)
+    echo;
+    echo -e "\033[31mUnknown command '${command}'";
+    echo;
+;;
+esac
