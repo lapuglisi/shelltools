@@ -1,0 +1,47 @@
+#compdef xl
+
+function _xl()
+{
+	local -a xl_commands=(
+		create config-update list destroy shutdown reboot pci-attach pci-detach pci-list pci-assignable-add pci-assignable-remove 
+		pci-assignable-list pause unpause console vncviewer save migrate restore migrate-receive dump-core cd-insert cd-eject 
+		mem-max mem-set button-press vcpu-list vcpu-pin vcpu-set vm-list info sharing sched-credit sched-credit2 sched-rtds 
+		domid domname rename trigger sysrq debug-keys set-parameters dmesg top network-attach network-list network-detach 
+		channel-list block-attach block-list block-detach vtpm-attach vtpm-list vtpm-detach vkb-attach vkb-list vkb-detach 
+		vdispl-attach vdispl-list vdispl-detach vsnd-attach vsnd-list vsnd-detach uptime claims cpupool-create cpupool-list 
+		cpupool-destroy cpupool-rename cpupool-cpu-add cpupool-cpu-remove cpupool-migrate cpupool-numa-split getenforce setenforce 
+		loadpolicy remus devd psr-hwinfo psr-cmt-attach psr-cmt-detach psr-cmt-show psr-cat-set psr-cat-show psr-mba-set psr-mba-show 
+		usbctrl-attach usbctrl-detach usbdev-attach usbdev-detach usb-list qemu-monitor-command);
+
+	local -a xl_domains=( $(sudo xl list | tail -n +3 | awk '{print $1}') );
+
+	local xl_current="${words[2]}";
+
+	case $CURRENT in
+	2)
+		compadd -a xl_commands;
+	;;
+
+	3)
+		case "${xl_current}" in
+		"config-update"|"console"|"destroy"|"shutdown"|"reboot"|"vncviewer")
+			compadd -a xl_domains;
+		;;
+
+		"save"|"restore"|"pause"|"unpause")
+			compadd -a xl_domains;
+		;;
+
+		*)
+			_files "*";
+		;;
+		esac
+	;;
+
+	*)
+		_files "*";
+	;;
+	esac
+}
+
+_xl "$@";
