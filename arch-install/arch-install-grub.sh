@@ -24,8 +24,8 @@ pacman -Syy;
 pacman -Fyy;
 
 # set locales
-sed -i.bak 's/#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen;
-sed -i.bak 's/#pt_BR.UTF-8/pt_BR.UTF-8/' /etc/locale.gen;
+sed -i.bak 's/#en_US.UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen;
+sed -i.bak 's/#pt_BR.UTF-8/pt_BR.UTF-8 UTF-8/' /etc/locale.gen;
 
 # set locales
 echo LANG="en_US.UTF-8" > /etc/locale.conf;
